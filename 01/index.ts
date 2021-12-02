@@ -1,8 +1,8 @@
-import {readFileSync} from 'fs'
+import parseFile from '../util/parser'
 
 const inputFileName = process.argv[2]
 
-const input = readFileSync(inputFileName, {encoding: 'utf8'}).split('\n').filter(x => x).map(x => Number.parseInt(x))
+const input = parseFile(inputFileName).map(x => Number.parseInt(x))
 
 let count = 0
 console.log(`Part 1`)
