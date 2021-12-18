@@ -14,8 +14,6 @@ function dedupCoords(list: Paper, coord: Coord): Paper {
 }
 
 function foldPaperY(paper: Paper, yCoord: number): Paper {
-  const topSide = paper.filter(c => c.y < yCoord)
-  let dupecount = 0
   const result: Paper = paper.map(c => {
     if(c.y === yCoord) {
       throw new Error(`Point on the fold line! ${c} on y=${yCoord}`)
@@ -25,22 +23,11 @@ function foldPaperY(paper: Paper, yCoord: number): Paper {
       const newC = {
         x: c.x, y: yCoord - diff
       }
-      const dupes = topSide.filter(c => {
-        if(c.x === newC.x) {
-          return Math.abs(c.y - newC.y) <= 1
-        } 
-        return false
-      })
-      if(dupes.length > 0) {
-        dupecount += dupes.length
-        console.log(`Folding ${JSON.stringify(c)} => ${JSON.stringify(newC)} (${JSON.stringify(dupes)})`)
-      }
       return newC
     } else {
       return c
     }
   }).reduce(dedupCoords, [])
-  console.log(`Dupes: ${dupecount}`)
 
   return result
 }
@@ -83,7 +70,7 @@ type Extents = {
 
 let [imgWidth, imgHeight] = [0, 0]
 
-function render(paper: Paper, foldLine?: FoldLine) {
+function render(paper: Paper, foldLine?: FoldLine, allowScale: boolean = true) {
   console.log(green(`${paper.length} dots visible`))
   const extents: Extents = paper.reduce((memo, c) => {
     return {
@@ -100,17 +87,17 @@ function render(paper: Paper, foldLine?: FoldLine) {
     [imgWidth, imgHeight] = [DOT_SIZE * (extents.maxX + xOffset), DOT_SIZE * (extents.maxY + yOffset)]
   }
   let [width, height] = [DOT_SIZE * (extents.maxX + xOffset), DOT_SIZE * (extents.maxY + yOffset)]
-  // while(width < imgWidth && height < imgHeight) {
-  //   //scale it up!
-  //   //will DOT_SIZE + 1 break everything?
-  //   const [newWidth, newHeight] = [(DOT_SIZE + 1) * (extents.maxX + xOffset), (DOT_SIZE + 1) * (extents.maxY + yOffset)]
-  //   if(newWidth > imgWidth || newHeight > imgHeight) {
-  //     break
-  //   }
-  //   DOT_SIZE++
-  //   [width, height] = [DOT_SIZE * (extents.maxX + xOffset), DOT_SIZE * (extents.maxY + yOffset)]
-  //   render(paper)
-  // }
+  while(allowScale && width < imgWidth && height < imgHeight) {
+    //scale it up!
+    //will DOT_SIZE + 1 break everything?
+    const [newWidth, newHeight] = [(DOT_SIZE + 1) * (extents.maxX + xOffset), (DOT_SIZE + 1) * (extents.maxY + yOffset)]
+    if(newWidth > imgWidth || newHeight > imgHeight) {
+      break
+    }
+    DOT_SIZE++
+    [width, height] = [DOT_SIZE * (extents.maxX + xOffset), DOT_SIZE * (extents.maxY + yOffset)]
+    render(paper, undefined, false)
+  }
   const canvas = createCanvas(imgWidth, imgHeight)
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = 'white'
@@ -166,7 +153,7 @@ function day13(file: string) {
       axis: axisStr === 'x' ? Axis.x : Axis.y,
       coord: Number.parseInt(coordStr)
     })
-    console.log(instructions.slice(-1)[0])
+    //console.log(instructions.slice(-1)[0])
     i++
   }
 
