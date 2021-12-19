@@ -1,7 +1,7 @@
 import parseFile from "../util/parser";
 
 type Polymerization = {[pair: string]: string}
-type ElementCount = {[letter: string]: number}
+type ElementCount = {[letter: string]: bigint}
 function polymerize(input: string, rules: Polymerization): string {
   let result = ''
   for(let i = 0; i < input.length - 1; i++) {
@@ -18,41 +18,40 @@ function polymerize(input: string, rules: Polymerization): string {
 
 const memos: {[p: string]: ElementCount} = {}
 
-function recursivePoly(input: string, rules:Polymerization, depth: number): ElementCount {
-  let result: ElementCount = {}
-  if(memos[input] !== undefined) {
-    return memos[input]
-  }
+function startRecursive(input: string, rules: Polymerization, depth: number): ElementCount {
+  const initialCount = input.split('').reduce(countChar, {})
   if(depth === 0) {
-    //console.log(`Depth 0: ${input}`)
-    if(rules[input]) {
-      result[rules[input]] = 1
-    }
-
-    //don't count the last char, it's the first of the next pair
-    const answer = input.slice(0, -1).split('').reduce(countChar, result)
-    memos[input] = answer
-    return answer
+    return initialCount
   }
+  return sumCounts(recursivePoly(input, rules, depth), initialCount)
+}
 
-  for(let i = 0; i < input.length; i++) {
+function recursivePoly(input: string, rules:Polymerization, depth: number): ElementCount {
+  const memoKey = `${input}-${depth}`
+  if(memos[memoKey]) {
+    //console.log(`Using ${memoKey} = ${countToString(memos[memoKey])}`)
+    return memos[memoKey]
+  }
+  //for each pair of letters in input
+  let result: ElementCount = {}
+  for(let i = 0; i < input.length - 1; i++) {
     let pair = input.slice(i, i + 2)
+    //if there's a rule for this pair
     if(rules[pair]) {
-      pair = pair[0] + rules[pair] + pair[1]
+      const letter = rules[pair]
+      pair = pair[0] + letter + pair[1]
+      //add the new letter to the result
+      result = sumCounts({[letter]: 1n}, result)
+      //if we need to go deeper
+      if(depth > 0) {
+        //add the new letters from the depths
+        const subResult = Object.assign({}, recursivePoly(pair, rules, depth - 1))
+        result = sumCounts(subResult, result)
+      }
     }
-    const sub = recursivePoly(pair, rules, depth - 1)
-    result = sumCounts(result, sub)
   }
-  //also count the last char, it's not counted in the subs
-  // const last = input[input.length - 1]
-  // if(result[last]) {
-  //   result[last] += 1
-  // } else {
-  //   result[last] = 1
-  // }
 
-  //console.log(`Result at depth=${depth}: ${JSON.stringify(result)}`)
-
+  memos[memoKey] = Object.assign({}, result)
   return result
 }
 
@@ -61,7 +60,7 @@ function sumCounts(counts: ElementCount, count: ElementCount): ElementCount {
     if(counts[letter] === undefined) {
       counts[letter] = count[letter]
     } else {
-      counts[letter] += count[letter]
+      counts[letter] = count[letter] + counts[letter]
     }
   })
   
@@ -70,16 +69,23 @@ function sumCounts(counts: ElementCount, count: ElementCount): ElementCount {
 
 function countChar(counts: ElementCount, letter: string): ElementCount {
   if(counts[letter] === undefined) {
-    counts[letter] = 1
+    counts[letter] = 1n
   } else {
-    counts[letter] += 1
+    counts[letter] += 1n
   }
 
   return counts
 }
 
-function sortCounts(counts: ElementCount): [l: string, n: number][] {
-  return Object.entries(counts).sort(([_, countA], [__, countB]) => countA - countB)
+function sortCounts(counts: ElementCount): [l: string, n: bigint][] {
+  return Object.entries(counts).sort(([_, a], [__, b]) =>  (a < b) ? -1 : ((a > b) ? 1 : 0))
+}
+
+function countToString(counts: ElementCount): string {
+  const sorted = Object.entries(counts).sort(([_, a], [__, b]) =>  (a < b) ? -1 : ((a > b) ? 1 : 0))
+  return '{' 
+    + sorted.map(([letter, count]) => `"${letter}": ${count}`).join(', ') 
+    + '}'
 }
 
 function day14(file: string) {
@@ -95,12 +101,20 @@ function day14(file: string) {
 
   let polymer = initial
   console.log(`Template:     ${polymer}`)
+  console.log(`${countToString(startRecursive(initial, rules, 0))} vs ${countToString(polymer.split('').reduce(countChar, {}))}`)
+  console.log(`${countToString(startRecursive(initial, rules, 1))}`)
   let i = 1
   for(i; i <= 10; i++) {
-    polymer = polymerize(polymer, rules)
-    if(polymer.length < 50) {
-      console.log(`After step ${i}: ${polymer}`)
-      console.log(`${JSON.stringify(recursivePoly(initial, rules, i))} vs ${JSON.stringify(polymer.split('').reduce(countChar, {}))}`)
+    if(i < 20) {
+      polymer = polymerize(polymer, rules)
+    
+      if(polymer.length < 50) {
+        console.log(`After step ${i}: ${polymer}`)
+      }
+      console.log(`${countToString(startRecursive(initial, rules, i - 1))} vs ${countToString(polymer.split('').reduce(countChar, {}))}`)
+    } else {
+      console.log(i)
+      console.log(`Step ${i}: ${countToString(startRecursive(initial, rules, i - 1))}`)
     }
   }
 
@@ -110,11 +124,11 @@ function day14(file: string) {
   const result = sorted[sorted.length - 1][1] - sorted[0][1]
   console.log(`${sorted[sorted.length - 1][0]} - ${sorted[0][0]} = ${result}`)
 
-  //console.log(`${JSON.stringify(recursivePoly(initial, rules, 0))}`)
-  console.log(`${JSON.stringify(recursivePoly(initial, rules, 10))}`)
-  const p2Counts = recursivePoly(initial, rules, 40)
-  sortCounts(p2Counts).forEach(([letter, count]) => console.log(`${letter}: ${count}`))
-  console.log(JSON.stringify(memos))
+  const part2 = startRecursive(initial, rules, 40 - 1)
+  console.log(countToString(part2))
+  const p2Sort = sortCounts(part2)
+  const result2 = p2Sort[p2Sort.length - 1][1] - p2Sort[0][1]
+  console.log(`${p2Sort[p2Sort.length - 1][0]} - ${p2Sort[0][0]} = ${result2}`)
 }
 
 module.exports = day14
