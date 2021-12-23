@@ -1,7 +1,6 @@
 import { createCanvas } from "canvas"
 import { createWriteStream } from "fs"
 import { Coord } from "../util/2dgrid"
-import { zeroPad } from "../util/numbers"
 import parseFile from "../util/parser"
 
 type Cave = number[][]
@@ -69,8 +68,8 @@ function render(cave: Cave, end: Coord, seen: Coord[], path: Path): Promise<void
   const PATH_COLOR = "#fde68a"
   const canvas = createCanvas((end.x + 1) * PIXEL_SIZE, (end.y + 1) * PIXEL_SIZE)
   const ctx = canvas.getContext('2d')
-  for(let y = 0; y < end.y; y++) {
-    for(let x = 0; x < end.x; x++) {
+  for(let y = 0; y <= end.y; y++) {
+    for(let x = 0; x <= end.x; x++) {
       const coord = new Coord(x, y)
       if(path.track.find(c => c.equals(coord))) {
         ctx.fillStyle = PATH_COLOR
@@ -92,10 +91,11 @@ function render(cave: Cave, end: Coord, seen: Coord[], path: Path): Promise<void
 
 function minPath(end: Coord, cave: Cave): Promise<Path> {
   const seen: Coord[] = []
-  const p = []
+  const p: Promise<any>[] = []
   let fringe: Path[] = [
     {cost: 0, fringe: new Coord(0, 0), track:[new Coord(0, 0)]}
   ]
+  const startTime = (new Date()).getTime()
 
   while(fringe.length > 0) {
     fringe = fringe.sort((a, b) => {
@@ -105,12 +105,22 @@ function minPath(end: Coord, cave: Cave): Promise<Path> {
     if(item === undefined) {
       throw new Error()
     }
+    const now = new Date().getTime()
     if(item.fringe.equals(end)) {
-      p.push(render(cave, end, seen, item))
-      return Promise.all(p).then(() => item)
+      //p.push(render(cave, end, seen, item))
+      console.log(`Solution found after ${now - startTime}ms. Finishing rendering`)
+      return Promise.all(p).then(() => {
+        const renderDone = new Date().getTime()
+        console.log(`Rendering done after ${renderDone - now}ms (total ${renderDone - startTime}ms)`)
+        return item
+      })
     }
-    //console.log(`Exploring! ${JSON.stringify(item)}`)
+
     seen.push(item.fringe)
+    if((now - startTime > 1000) && ((now - startTime) / 1000) % 10 === 0) {
+      //every 10 seconds?
+      console.log(`${(now-startTime) / 1000}s: At ${JSON.stringify(item.fringe)}, path length ${item.track.length} (Cost ${item.cost}) ${distance(item.fringe, end)} remaining`)
+    }
 
     const neighbors = neighborsInBounds(item.fringe, end).filter(notIn(seen)).filter(notIn(fringe.map(x => x.fringe)))
     neighbors.forEach(n => {
@@ -120,7 +130,7 @@ function minPath(end: Coord, cave: Cave): Promise<Path> {
         fringe: n,
         track: item.track.concat([n])
       }
-      p.push(render(cave, end, seen.concat([]), nextP))
+      //p.push(render(cave, end, seen.concat([]), nextP))
       fringe.push(nextP)
     })
   }
@@ -157,14 +167,13 @@ function day15(file: string) {
     }
   }
 
-  for(let y = 0; y < 5; y++) {
+  for(let y = 0; y < 5 * cave.length; y++) {
     const line = []
-    for(let x = 0; x < 5; x++) {
-      line.push(costAt(new Coord(x * cave.length, y * cave.length), cave))
+    for(let x = 0; x < 5 * cave.length; x++) {
+      line.push(costAt(new Coord(x, y), cave))
     }
-    console.log(line.join(' '))
+    //console.log(line.join(''))
   }
-  return
 
   console.log(`Part 1: ${minRiskToGoal[0][0]}`)
   minPath(end, cave).then(p1 => {
@@ -174,6 +183,10 @@ function day15(file: string) {
     return minPath(p2End, cave)
   }).then(p2 => {
     console.log(`Part 2: ${JSON.stringify(p2.cost)}`)
+    const sum = p2.track.reduce((s: number, c: Coord) => {
+      return s + costAt(c, cave)
+    }, 0)
+    console.log(`Sum: ${sum} (-${cave[0][0]} = ${sum - cave[0][0]})`)
   })
   
   /*
