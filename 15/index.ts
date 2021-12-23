@@ -96,10 +96,15 @@ function minPath(end: Coord, cave: Cave): Promise<Path> {
     {cost: 0, fringe: new Coord(0, 0), track:[new Coord(0, 0)]}
   ]
   const startTime = (new Date()).getTime()
+  const useDistance = false
 
   while(fringe.length > 0) {
     fringe = fringe.sort((a, b) => {
-      return (a.cost + distance(a.fringe, end)) - (b.cost + distance(b.fringe, end))
+      if(useDistance) {
+        return (a.cost + distance(a.fringe, end)) - (b.cost + distance(b.fringe, end))
+      } else {
+        return a.cost - b.cost
+      }
     })
     const item = fringe.shift()
     if(item === undefined) {
@@ -109,6 +114,7 @@ function minPath(end: Coord, cave: Cave): Promise<Path> {
     if(item.fringe.equals(end)) {
       //p.push(render(cave, end, seen, item))
       console.log(`Solution found after ${now - startTime}ms. Finishing rendering`)
+
       return Promise.all(p).then(() => {
         const renderDone = new Date().getTime()
         console.log(`Rendering done after ${renderDone - now}ms (total ${renderDone - startTime}ms)`)
@@ -120,6 +126,7 @@ function minPath(end: Coord, cave: Cave): Promise<Path> {
     if((now - startTime > 1000) && ((now - startTime) / 1000) % 10 === 0) {
       //every 10 seconds?
       console.log(`${(now-startTime) / 1000}s: At ${JSON.stringify(item.fringe)}, path length ${item.track.length} (Cost ${item.cost}) ${distance(item.fringe, end)} remaining`)
+      console.log(`Fringe: ${JSON.stringify(fringe.slice(0, 5).map(p => p.cost))}`)
     }
 
     const neighbors = neighborsInBounds(item.fringe, end).filter(notIn(seen)).filter(notIn(fringe.map(x => x.fringe)))
@@ -179,7 +186,7 @@ function day15(file: string) {
   minPath(end, cave).then(p1 => {
     console.log(`Part 1: ${JSON.stringify(p1)}`)
 
-    const p2End = new Coord((cave.length * 5) - 1, (cave.length * 5) - 1)
+    const p2End = new Coord((cave.length * 5), (cave.length * 5))
     return minPath(p2End, cave)
   }).then(p2 => {
     console.log(`Part 2: ${JSON.stringify(p2.cost)}`)
