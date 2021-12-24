@@ -26,4 +26,27 @@ export class Coord {
     equals(other: Coord): boolean {
         return this.x === other.x && this.y === other.y
     }
+
+    toString(): string {
+        return `(${this.x}, ${this.y})`
+    }
+}
+
+export class Range {
+    topLeft: Coord
+    bottomRight: Coord
+
+    constructor(c1: Coord, c2: Coord) {
+        this.topLeft = c1
+        this.bottomRight = c2
+    }
+
+    contains(point: Coord) {
+        return point.x <= this.bottomRight.x && point.x >= this.topLeft.x
+            && point.y <= this.topLeft.y && point.y >= this.bottomRight.y
+    }
+
+    toString(): string {
+        return `Range[${this.topLeft.toString()}, ${this.bottomRight.toString()}]`
+    }
 }
