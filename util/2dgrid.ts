@@ -27,6 +27,20 @@ export class Coord {
         return this.x === other.x && this.y === other.y
     }
 
+    sub(other: Coord): Coord {
+        return new Coord(
+            this.x - other.x,
+            this.y - other.y
+        )
+    }
+    
+    add(other: Coord): Coord {
+        return new Coord(
+            this.x + other.x,
+            this.y + other.y
+        )
+    }
+
     toString(): string {
         return `(${this.x}, ${this.y})`
     }
@@ -36,9 +50,9 @@ export class Range {
     topLeft: Coord
     bottomRight: Coord
 
-    constructor(c1: Coord, c2: Coord) {
-        this.topLeft = c1
-        this.bottomRight = c2
+    constructor(topLeft: Coord, bottomRight: Coord) {
+        this.topLeft = topLeft
+        this.bottomRight = bottomRight
     }
 
     contains(point: Coord) {
@@ -49,7 +63,7 @@ export class Range {
     coords(): Coord[] {
         const result = []
         for(let x = this.topLeft.x; x <= this.bottomRight.x; x++) {
-            for(let y = this.bottomRight.y; y <= this.topLeft.y; y++) {
+            for(let y = this.topLeft.y; y <= this.bottomRight.y; y++) {
                 result.push(new Coord(x, y))
             }
         }
