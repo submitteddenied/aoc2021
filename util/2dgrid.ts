@@ -46,6 +46,17 @@ export class Range {
             && point.y <= this.topLeft.y && point.y >= this.bottomRight.y
     }
 
+    coords(): Coord[] {
+        const result = []
+        for(let x = this.topLeft.x; x <= this.bottomRight.x; x++) {
+            for(let y = this.bottomRight.y; y <= this.topLeft.y; y++) {
+                result.push(new Coord(x, y))
+            }
+        }
+
+        return result
+    }
+
     toString(): string {
         return `Range[${this.topLeft.toString()}, ${this.bottomRight.toString()}]`
     }
