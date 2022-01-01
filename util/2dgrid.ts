@@ -62,8 +62,8 @@ export class Range {
 
     coords(): Coord[] {
         const result = []
-        for(let x = this.topLeft.x; x <= this.bottomRight.x; x++) {
-            for(let y = this.topLeft.y; y <= this.bottomRight.y; y++) {
+        for(let y = this.topLeft.y; y <= this.bottomRight.y; y++) {
+            for(let x = this.topLeft.x; x <= this.bottomRight.x; x++) {
                 result.push(new Coord(x, y))
             }
         }

@@ -1,6 +1,8 @@
 import parseFile from "../util/parser"
 import { Coord, Range } from '../util/2dgrid' 
 import { yellow } from "colors/safe"
+import { createCanvas } from "canvas"
+import { createWriteStream } from "fs"
 
 type PixelMap = {
     [coord: string]: boolean
@@ -11,68 +13,94 @@ interface Image {
     pixels: PixelMap
 }
 
-function rangeToIndex(r: Range, image: Image): number {
-    const temp: Image = {
-        extents: r,
-        pixels: image.pixels
-    }
-    const numStr = r.coords().map(c => image.pixels[c.toString()]).map(i => i ? '1' : '0').join('')
-
+function rangeToIndex(r: Range, image: Image, outOfBoundsState: boolean): number {
+    // const temp: Image = {
+    //     extents: r,
+    //     pixels: image.pixels
+    // }
+    //console.log(r.toString())
+    //render(temp)
+    
+    const numStr = r.coords().map(c => {
+        const result = image.pixels[c.toString()]
+        if(result === undefined) {
+            return outOfBoundsState
+        }
+        return result
+    }).map(i => i ? '1' : '0').join('')
+    //console.log(`Read ${numStr} (${Number.parseInt(numStr, 2)})`)
+    
     return Number.parseInt(numStr, 2)
 }
 
-function nextValueForCoord(c: Coord, prevImage: Image, rules: string): boolean {
+function nextValueForCoord(c: Coord, prevImage: Image, rules: string, outOfBoundsState: boolean): boolean {
     //create range centered on coord
     const r = new Range(c.sub(new Coord(1, 1)), c.add(new Coord(1, 1)))
-    const nextValIndex = rangeToIndex(r, prevImage)
+    const nextValIndex = rangeToIndex(r, prevImage, outOfBoundsState)
+    //console.log(`Next value for ${c.toString()}: ${rules[nextValIndex]}`)
 
+    //console.log('')
     return rules[nextValIndex] === '#'
 }
 
-function stepImage(image: Image, rules: string): Image {
+function stepImage(image: Image, rules: string, outOfBoundsState: boolean): Image {
 
     const toProcess = new Range(image.extents.topLeft.sub(new Coord(1, 1)), image.extents.bottomRight.add(new Coord(1, 1)))
 
-    const nextPixels: [Coord, boolean][] = toProcess.coords().map(c => [c, nextValueForCoord(c, image, rules)])
+    const nextPixels: [Coord, boolean][] = toProcess.coords().map(c => [c, nextValueForCoord(c, image, rules, outOfBoundsState)])
 
     const result: Image = {
-        extents: new Range(new Coord(0, 0), new Coord(0, 0)),
+        extents: toProcess,
         pixels: {}
     }
 
     result.pixels = nextPixels.reduce<PixelMap>((i, [coord, val]) => {
-        if(coord.x < result.extents.topLeft.x) {
-            result.extents.topLeft.x = coord.x
-        } else if(coord.x > result.extents.bottomRight.x) {
-            result.extents.bottomRight.x = coord.x
-        }
-        if(coord.y < result.extents.topLeft.y) {
-            result.extents.topLeft.y = coord.y
-        } else if(coord.y > result.extents.bottomRight.y) {
-            result.extents.bottomRight.y = coord.y
-        }
-        if(val) {
-            i[coord.toString()] = val
-        }
+        i[coord.toString()] = val
         return i
     }, {})
 
     return result
 }
 
-function render(image: Image): void {
-    for(let y = image.extents.topLeft.y; y <= image.extents.bottomRight.y; y++) {
-        const line = []
-        for(let x = image.extents.topLeft.x; x <= image.extents.bottomRight.x; x++) {
+let INDEX = 1
+function render(image: Image, r?: Range, outsideState: boolean = false): Promise<void> {
+    if(r === undefined) {
+        r = image.extents
+    }
+    const PIXEL_SIZE = 5
+    const COLORS = {
+        DARK: '#334155', //slate_700
+        LIT: '#e2e8f0', //slate_200
+        LIT_OUTSIDE: '#94a3b8' //slate_400
+    }
+    const [w, h] = [r.bottomRight.x - r.topLeft.x, r.bottomRight.y - r.topLeft.y]
+    const [xOffset, yOffset] = [r.topLeft.x, r.topLeft.y]
+    const canvas = createCanvas(w * PIXEL_SIZE, h * PIXEL_SIZE)
+    const ctx = canvas.getContext('2d')
+    const outsideColor = outsideState ? COLORS.LIT_OUTSIDE : COLORS.DARK
+    ctx.fillStyle = outsideColor
+    ctx.fillRect(0, 0, w * PIXEL_SIZE, h * PIXEL_SIZE)
+    for(let y = r.topLeft.y; y <= r.bottomRight.y; y++) {
+        //const line = []
+        for(let x = r.topLeft.x; x <= r.bottomRight.x; x++) {
             const coord = new Coord(x, y)
-            if(image.pixels[coord.toString()]) {
-                line.push(yellow('#'))
+
+            if(image.pixels[coord.toString()] === undefined) {
+                //line.push(outsideState ? yellow('#') : '.')
             } else {
-                line.push('.')
+                //line.push(image.pixels[coord.toString()] ? yellow('#') : '.')
+                ctx.fillStyle = image.pixels[coord.toString()] ? COLORS.LIT : COLORS.DARK
+                ctx.fillRect((x - xOffset) * PIXEL_SIZE, (y - yOffset) * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE)
             }
         }
-        console.log(line.join(''))
+        //console.log(line.join(''))
     }
+
+    return new Promise((res, rej) => {
+        const outStream = createWriteStream(`20/img/img-${INDEX++}.png`)
+        canvas.createPNGStream().pipe(outStream)
+        outStream.on('finish', res)
+    })
 }
 
 function day20(file: string) {
@@ -104,10 +132,33 @@ function day20(file: string) {
         }
     }
     let current = image
-    render(current)
-    current = stepImage(image, rules)
-    console.log('')
-    render(current)
+    let outsideState = false
+    const LOOP_COUNT = 50
+    const expansion = new Coord(LOOP_COUNT+2, LOOP_COUNT+2)
+    const finalExtents = new Range(image.extents.topLeft.sub(expansion), image.extents.bottomRight.add(expansion))
+    const renders = []
+
+    renders.push(render(current, finalExtents, outsideState))
+    const c = Object.values(current.pixels).filter(v => v).length
+    console.log(`Lit: ${c}`)
+    for(let i = 0; i < LOOP_COUNT; i++) {
+        current = stepImage(current, rules, outsideState)
+        if(rules[0] === '#' && outsideState === false) {
+            outsideState = true
+        } else if(rules[rules.length - 1] === '.' && outsideState === true) {
+            outsideState = false
+        }
+        console.log('')
+        console.log(`Step ${i + 1}`)
+        renders.push(render(current, finalExtents, outsideState))
+        const count = Object.values(current.pixels).filter(v => v).length
+        console.log(`Lit: ${count}${outsideState ? ' (+infinity)': ''}`)
+    }
+
+    console.log(`Processing done, finishing renders...`)
+    Promise.all(renders).then(() => {
+        console.log(`Renders done!`)
+    })
 }
 
 module.exports = day20 
